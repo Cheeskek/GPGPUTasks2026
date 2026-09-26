@@ -4,17 +4,15 @@
 
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE_X, GROUP_SIZE_Y, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void aplusb_matrix_good(__global const uint* a,
                      __global const uint* b,
                      __global       uint* c,
                      unsigned int width,
                      unsigned int height)
 {
-    const unsigned int idx = get_global_id(0) + get_global_id(1) * width;
-    for (int y = 0; y < height; y += 1) {
-        for (int x = idx; x < width; x += GROUP_SIZE) {
-            c[y * width + x] = a[y * width + x] + b[y * width + x];
-        }
-    }
+    const unsigned int idx = get_global_id(0);
+    const unsigned int x = idx % width;
+    const unsigned int y = idx / width;
+    c[y * width + x] = a[y * width + x] + b[y * width + x];
 }
