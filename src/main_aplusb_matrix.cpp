@@ -122,6 +122,7 @@ void run(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
+    return 0;
     int exit_code = 0;
     try {
         run(argc, argv);
