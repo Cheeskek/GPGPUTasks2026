@@ -70,7 +70,7 @@ void run(int argc, char** argv)
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-        double memory_size_gb = 3 * (sizeof(unsigned int) * width * height / 1024.0 / 1024.0);
+        double memory_size_gb = 3 * sizeof(unsigned int) * width * height / 1024.0 / 1024.0 / 1024.0;
         std::cout << "a + b kernel median VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
         // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
@@ -101,7 +101,7 @@ void run(int argc, char** argv)
         }
         std::cout << "a + b matrix kernel times (in seconds) - " << stats::valuesStatsLine(times) << std::endl;
 
-        double memory_size_gb = 3 * (sizeof(unsigned int) * width * height / 1024.0 / 1024.0);
+        double memory_size_gb = 3 * sizeof(unsigned int) * width * height / 1024.0 / 1024.0 / 1024.0;
         std::cout << "a + b kernel median VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s" << std::endl;
 
         // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
