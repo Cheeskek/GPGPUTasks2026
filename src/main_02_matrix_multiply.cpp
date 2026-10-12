@@ -44,13 +44,66 @@ struct gpu_half {
     uint16_t bits;
     gpu_half() = default;
     gpu_half(float x)  {
-        _Float16 h = static_cast<_Float16>(x);
-        bits = *reinterpret_cast<uint16_t*>(&h);
+        // Reinterpret the float32 bit pattern (NOT a numeric conversion).
+        uint32_t fltInt32;
+        __builtin_memcpy(&fltInt32, &x, sizeof(fltInt32));
+
+        uint16_t fltInt16  = static_cast<uint16_t>((fltInt32 >> 16) & 0x8000u); // sign
+        uint32_t exponent  = (fltInt32 >> 23) & 0xffu;
+        uint32_t mantissa  = fltInt32 & 0x7fffffu;
+
+        if (exponent == 0xffu) {
+            // Inf or NaN
+            fltInt16 |= 0x7c00u;
+            if (mantissa != 0u) {
+                fltInt16 |= 0x0200u; // quiet NaN
+            }
+        } else {
+            int32_t half_exp = static_cast<int32_t>(exponent) - 127 + 15;
+            if (half_exp >= 0x1f) {
+                // Overflow -> Inf
+                fltInt16 |= 0x7c00u;
+            } else if (half_exp <= 0) {
+                // Subnormal half (or underflow to zero)
+                if (half_exp < -10) {
+                    // Too small to be represented -> +/-0
+                } else {
+                    mantissa |= 0x800000u; // restore implicit leading 1
+                    uint32_t shift     = static_cast<uint32_t>(14 - half_exp);
+                    uint32_t half_mant = mantissa >> shift;
+                    uint32_t rem       = mantissa & ((1u << shift) - 1u);
+                    uint32_t halfway   = 1u << (shift - 1);
+                    // round to nearest, ties to even
+                    if (rem > halfway || (rem == halfway && (half_mant & 1u))) {
+                        ++half_mant;
+                    }
+                    fltInt16 |= static_cast<uint16_t>(half_mant);
+                }
+            } else {
+                // Normal half; round to nearest, ties to even
+                uint32_t half_mant = mantissa >> 13;
+                uint32_t rem       = mantissa & 0x1fffu;
+                if (rem > 0x1000u || (rem == 0x1000u && (half_mant & 1u))) {
+                    ++half_mant;
+                    if (half_mant == 0x400u) {
+                        half_mant = 0;
+                        ++half_exp; // mantissa overflow -> bump exponent
+                    }
+                }
+                if (half_exp >= 0x1f) {
+                    fltInt16 |= 0x7c00u; // rounding overflowed to Inf
+                } else {
+                    fltInt16 |= static_cast<uint16_t>((static_cast<uint32_t>(half_exp) << 10) | half_mant);
+                }
+            }
+        }
+
+        bits = fltInt16;
     }
     operator float() const {
         uint16_t bits_copy = bits;
-        _Float16 h = *reinterpret_cast<_Float16*>(&bits_copy);
-        return static_cast<float>(h);
+        // NO
+        return 0.0f;
     }
 };
 static_assert(sizeof(gpu_half) == 2, "gpu_half must be 2 bytes");
@@ -150,6 +203,7 @@ void run(int argc, char** argv)
                     avk2::SpecializationConstants coop_matrix_spec_constants;
                     coop_matrix_spec_constants.add(0, static_cast<uint32_t>(coop_matrix_size));
                     vk_matrix05MultiplyCooperativeMatrix.setSpecializationConstants(coop_matrix_spec_constants);
+                    algorithm_names.push_back(coop_matrix_algorithm_name);
                 }
             }
         }
@@ -225,7 +279,8 @@ void run(int argc, char** argv)
         double total_ops = 1.0 * h * w * (k + k - 1); // общее число сложений и умножений
         double gflops = 1000*1000*1000;
         std::cout << "algorithm GFlops: " << total_ops / gflops / stats::median(times) << " GFlops" << std::endl;
-        std::cout << "algorithm effective memory bandwidth: " << 1.0 * (h * k + k * w + h * w) * sizeof(float) / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
+        int sizeof_elem = (algorithm == coop_matrix_algorithm_name ? sizeof(float) / 2 : sizeof(float));
+        std::cout << "algorithm effective memory bandwidth: " << 1.0 * (h * k + k * w + h * w) * sizeof_elem / 1024 / 1024 / 1024 / stats::median(times) << " GB/s" << std::endl;
 
         // Сверяем результат
         if (algorithm != "CPU with OpenMP") {
