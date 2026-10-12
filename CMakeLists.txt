@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
 project(GPGPUTasks)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -81,6 +79,7 @@ endforeach()
 # Обратите внимание что это происходит на этапе компиляции, кроме того эта команда делает так чтобы файл src/kernels/vk/aplusb_comp.h был перечислен среди HEADERS для компиляции при вызове add_executable
 set(VULKAN_SOURCES
         src/kernels/vk/aplusb.comp
+        src/kernels/vk/convert.comp
         src/kernels/vk/matrix_01_transpose_naive.comp
         src/kernels/vk/matrix_02_transpose_coalesced_via_local_memory.comp
         src/kernels/vk/matrix_03_multiply_naive.comp
