@@ -12,8 +12,18 @@ layout (push_constant) uniform PushConstants {
     uint h;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+layout (local_size_x = GROUP_SIZE_X, local_size_y = GROUP_SIZE_Y) in;
+shared float local_data[GROUP_SIZE];
 void main()
 {
-    // TODO
+	const uint x = gl_GlobalInvocationID.x;
+	const uint y = gl_GlobalInvocationID.y;
+
+	const uint loc_x = gl_LocalInvocationID.x;
+	const uint loc_y = gl_LocalInvocationID.y;
+
+    local_data[(loc_x + loc_y) % GROUP_SIZE_X + loc_y * GROUP_SIZE_X] = matrix[x + y * params.w];
+    barrier();
+	const uint left = gl_WorkGroupID.x * GROUP_SIZE_X * params.h + gl_WorkGroupID.y * GROUP_SIZE_Y;
+    transposed_matrix[left + loc_x + loc_y * params.h] = local_data[(loc_y + loc_x) % GROUP_SIZE_Y + loc_x * GROUP_SIZE_Y];
 }

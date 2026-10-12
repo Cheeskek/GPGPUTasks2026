@@ -4,17 +4,17 @@
 
 #include "../defines.h"
 
+#extension GL_KHR_shader_subgroup_basic : enable
 #extension GL_KHR_memory_scope_semantics : require
+#extension GL_EXT_control_flow_attributes : enable
 #extension GL_EXT_subgroup_uniform_control_flow : enable
 #extension GL_EXT_shader_explicit_arithmetic_types_float16 : require
-// #extension GL_KHR_cooperative_matrix : require // TODO uncomment me
-// Чтобы это компилировалось вам нужен достаточно свежий GLSL компилятор
-// Например если вы получили ошибку "error: '#extension' : extension not supported: GL_KHR_cooperative_matrix"
-// то вам потребуется его обновить. Для Linux актуальный glslc устанавливается скриптом scripts/linux/install_vulkan_sdk.sh
-// Если потребуется - то явно указать путь к компилятору можно через CMake options: -DGLSLC_BIN=.../glslc.exe
+#extension GL_KHR_cooperative_matrix : require
 
-layout (std430, binding = 0) readonly buffer MatrixAIn   { float a[]; }; // rows=h x cols=k
-layout (std430, binding = 1) readonly buffer MatrixBIn   { float b[]; }; // rows=k x cols=w
+// бессовестно украдено из https://github.com/jeffbolznv/vk_cooperative_matrix_perf/blob/master/shaders/shmem.comp
+
+layout (std430, binding = 0) readonly buffer MatrixAIn   { float16_t a[]; }; // rows=h x cols=k
+layout (std430, binding = 1) readonly buffer MatrixBIn   { float16_t b[]; }; // rows=k x cols=w
 layout (std430, binding = 2)          buffer MatrixCOut  { float c[]; }; // rows=h x cols=w
 
 layout (push_constant) uniform PushConstants {
@@ -23,8 +23,150 @@ layout (push_constant) uniform PushConstants {
     uint k;
 } params;
 
-layout (local_size_x = 1, local_size_y = 1) in;
+// hardcoded matrix scale (locally 8)
+#define M 16
+
+#define COOP_GROUP_SIZE_X (GROUP_SIZE_X * 2)
+#define COOP_GROUP_SIZE_Y (GROUP_SIZE_Y / 2)
+
+#define WG_W (COOP_GROUP_SIZE_X)
+#define WG_H (COOP_GROUP_SIZE_Y / M)
+
+// shared mem dimensions
+#define TILE_W (M * COOP_GROUP_SIZE_X)
+#define TILE_H (M * COOP_GROUP_SIZE_Y)
+#define TILE_K 32
+#define PAD 1
+
+#define C_ROWS (TILE_H / (WG_H * M))
+#define C_COLS (TILE_W / (WG_W * M))
+
+#define NUM_INVOCATIONS (COOP_GROUP_SIZE_X * COOP_GROUP_SIZE_Y)
+#define A_ELEMS_PER_THREAD ((TILE_H * TILE_K) / NUM_INVOCATIONS)
+#define B_ELEMS_PER_THREAD ((TILE_K * TILE_W) / NUM_INVOCATIONS)
+
+layout (local_size_x = COOP_GROUP_SIZE_X, local_size_y = COOP_GROUP_SIZE_Y) in;
+shared float16_t loc_a[TILE_H * (TILE_K + PAD)];
+shared float16_t loc_b[TILE_K * (TILE_W + PAD)];
+coopmat<float, gl_ScopeSubgroup, M, M, gl_MatrixUseAccumulator> result[C_ROWS * C_COLS];
+
 void main()
 {
-    // TODO 020 Это добровольное задание за супер-пупер-баллы престижа сверх нормы
+    uint tid = gl_LocalInvocationIndex;
+    uint numThreads = gl_WorkGroupSize.x * gl_WorkGroupSize.y;
+
+    uvec2 tileID = gl_WorkGroupID.xy;
+
+    uint subgroupID = gl_SubgroupID;
+    uvec2 warpInTile = uvec2(
+            subgroupID % WG_W,
+            subgroupID / WG_W
+            );
+
+    uint left_a = TILE_H * tileID.y * params.k;
+    uint left_b = TILE_W * tileID.x;
+
+    for (uint i = 0; i < C_ROWS; ++i) {
+        for (uint j = 0; j < C_COLS; ++j) {
+            result[i + C_ROWS * j] = coopmat<float, gl_ScopeSubgroup, M, M, gl_MatrixUseAccumulator>(0);
+        }
+    }
+
+    float16_t reg_a[A_ELEMS_PER_THREAD];
+    float16_t reg_b[B_ELEMS_PER_THREAD];
+
+    [[unroll]] for (uint n = 0; n < A_ELEMS_PER_THREAD; ++n) {
+        uint i = tid + n * NUM_INVOCATIONS;
+        reg_a[n] = a[left_a + (i / TILE_K) * params.k + (i % TILE_K)];
+    }
+    [[unroll]] for (uint n = 0; n < B_ELEMS_PER_THREAD; ++n) {
+        uint i = tid + n * NUM_INVOCATIONS;
+        reg_b[n] = b[left_b + (i / TILE_W) * params.w + (i % TILE_W)];
+    }
+
+    for (uint ch = 0; ch < params.k; ch += TILE_K) {
+        barrier();
+
+        for (uint i = tid; i < TILE_H * TILE_K; i += numThreads) {
+            uint row = i / TILE_K;
+            uint col = i % TILE_K;
+
+            loc_a[row * (TILE_K + PAD) + col] = a[left_a + row * params.k + ch + col];
+        }
+
+        for (uint i = tid; i < TILE_K * TILE_W; i += numThreads) {
+            uint row = i / TILE_W;
+            uint col = i % TILE_W;
+
+            loc_b[row * (TILE_W + PAD) + col] = b[left_b + (row + ch) * params.w + col];
+        }
+
+        barrier();
+
+        uint nextCh = ch + TILE_K;
+        if (nextCh < params.k) {
+            [[unroll]] for (uint n = 0; n < A_ELEMS_PER_THREAD; ++n) {
+                uint i = tid + n * NUM_INVOCATIONS;
+                reg_a[n] = a[left_a + (i / TILE_K) * params.k + nextCh + (i % TILE_K)];
+            }
+            [[unroll]] for (uint n = 0; n < B_ELEMS_PER_THREAD; ++n) {
+                uint i = tid + n * NUM_INVOCATIONS;
+                reg_b[n] = b[(nextCh + (i / TILE_W)) * params.w + left_b + (i % TILE_W)];
+            }
+        }
+
+        for (uint k = 0; k < TILE_K / M; ++k) {
+            uint sk = M * k;
+
+            coopmat<float16_t, gl_ScopeSubgroup, M, M, gl_MatrixUseA> mat_a[C_ROWS];
+
+            for (uint i = 0; i < C_ROWS; ++i) {
+                uint si = M * (C_ROWS * warpInTile.y + i);
+
+                coopMatLoad(
+                    mat_a[i],
+                    loc_a,
+                    si * (TILE_K + PAD) + sk,
+                    (TILE_K + PAD),
+                    gl_CooperativeMatrixLayoutRowMajor
+                );
+            }
+
+            coopmat<float16_t, gl_ScopeSubgroup, M, M, gl_MatrixUseB> mat_b;
+
+            for (uint j = 0; j < C_COLS; ++j) {
+                uint sj = M * (C_COLS * warpInTile.x + j);
+
+                uint b_off = sk * (TILE_W + PAD) + sj;
+
+                coopMatLoad(
+                    mat_b,
+                    loc_b,
+                    b_off,
+                    (TILE_W + PAD),
+                    gl_CooperativeMatrixLayoutRowMajor
+                );
+
+                for (uint i = 0; i < C_ROWS; ++i) {
+                    result[i + C_ROWS * j] = coopMatMulAdd(mat_a[i], mat_b, result[i + C_ROWS * j]);
+                }
+            }
+        }
+    }
+
+    for (uint i = 0; i < C_ROWS; ++i) {
+        uint gi = TILE_H * tileID.y + M * (C_ROWS * warpInTile.y + i);
+
+        for (uint j = 0; j < C_COLS; ++j) {
+            uint gj = TILE_W * tileID.x + M * (C_COLS * warpInTile.x + j);
+
+            coopMatStore(
+                    result[i + C_ROWS * j],
+                    c,
+                    gi * params.w + gj,
+                    params.w,
+                    gl_CooperativeMatrixLayoutRowMajor
+            );
+        }
+    }
 }
