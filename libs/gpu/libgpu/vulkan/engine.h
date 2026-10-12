@@ -160,6 +160,27 @@ namespace avk2 {
 		size_t				size_;
 	};
 
+	class SpecializationConstants {
+	public:
+		struct Constant {
+			uint32_t constant_id;
+			uint32_t value;
+		};
+
+		SpecializationConstants() = default;
+
+		void add(uint32_t constant_id, uint32_t value)
+		{
+			constants_.push_back(Constant{constant_id, value});
+		}
+
+		bool							isEmpty() const		{ return constants_.empty(); }
+		const std::vector<Constant> &	constants() const	{ return constants_;         }
+
+	protected:
+		std::vector<Constant>	constants_;
+	};
+
 	class ImageAttachment {
 	public:
 		// usage of this constructor means that attachment will not be cleared (will be used as is - i.e. with vk::AttachmentLoadOp::eLoad)
@@ -510,6 +531,9 @@ namespace avk2 {
 
 		std::string getProgramName() const			{ return shaders_programs_[0]->programName(); }
 
+		void setSpecializationConstants(const SpecializationConstants &sc);
+		const SpecializationConstants &	getSpecializationConstants() const	{ return specialization_constants_; }
+
 		double getLastExecTotalTime() const			{ return last_exec_total_time_; }
 		double getLastExecPrepairingTime() const	{ return last_exec_prepairing_time_; }
 		double getLastExecGPUTime() const			{ return last_exec_gpu_time_; }
@@ -534,6 +558,7 @@ namespace avk2 {
 		VulkanKernel								*compileRasterizationKernel(const std::shared_ptr<VulkanEngine> &vk);
 
 		std::vector<const ProgramBinaries*>			shaders_programs_;
+		SpecializationConstants						specialization_constants_;
 
 		double										last_exec_total_time_;
 		double										last_exec_prepairing_time_;
