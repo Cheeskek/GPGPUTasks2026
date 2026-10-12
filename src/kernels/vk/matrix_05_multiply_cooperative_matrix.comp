@@ -23,7 +23,7 @@ layout (push_constant) uniform PushConstants {
     uint k;
 } params;
 
-layout (constant_id = 0) const uint M = 8;
+layout (constant_id = 0) const uint M = 1;
 
 #define WG_W COOPMAT_WG_W
 #define WG_H COOPMAT_WG_H

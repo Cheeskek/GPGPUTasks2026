@@ -178,7 +178,7 @@ void run(int argc, char** argv)
     const std::string coop_matrix_algorithm_name = "03 using cooperative matrix [+Prestige Points]";
 
     int coop_matrix_size = 0;
-    bool I_Want_Super_Puper_Prestige_Points = true;
+    bool I_Want_Super_Puper_Prestige_Points = false;
     if (I_Want_Super_Puper_Prestige_Points) {
         if (context.type() == gpu::Context::TypeCUDA) {
             algorithm_names.push_back("03 using WMMA (Tensor Cores) [+Prestige Points]");

@@ -1,0 +1,20 @@
+#version 450
+
+#include <libgpu/vulkan/vk/common.vk>
+
+#include "../defines.h"
+
+layout (std430, binding = 0) readonly buffer Input32f  { float a[]; };
+layout (std430, binding = 1)          buffer Output16f { uint  b[]; };
+
+layout (push_constant) uniform PushConstants {
+    uint n;
+} params;
+
+layout (local_size_x = GROUP_SIZE, local_size_y = 1) in;
+void main()
+{
+    const uint id = gl_GlobalInvocationID.x;
+
+    b[id] = packHalf2x16(vec2(a[id * 2], a[id * 2 + 1]));
+}
