@@ -1176,6 +1176,26 @@ avk2::VulkanKernel *avk2::KernelSource::compileComputeKernel(const std::shared_p
             }
         }
 
+    std::vector<vk::SpecializationMapEntry> spec_entries;
+    std::vector<uint32_t>                   spec_data;
+    const auto &constants = specialization_constants_.constants();
+    for (size_t i = 0; i < constants.size(); ++i) {
+        const auto &c = constants[i];
+        spec_entries.push_back(vk::SpecializationMapEntry(
+                    c.constant_id,
+                    static_cast<uint32_t>(i * sizeof(uint32_t)),
+                    sizeof(uint32_t)));
+        spec_data.push_back(c.value);
+    }
+    vk::SpecializationInfo spec_info;
+    if (!spec_entries.empty()) {
+        spec_info = vk::SpecializationInfo(
+                static_cast<uint32_t>(spec_entries.size()), spec_entries.data(),
+                static_cast<size_t>(spec_data.size() * sizeof(uint32_t)), spec_data.data());
+        pipeline_stages_create_info.setPSpecializationInfo(&spec_info);
+    }
+
+
 	std::set<unsigned int> descriptors_sets = shader_module_info.getDescriptorsSets();
 	// let's check that common.vk (and so rassert.vk) was included from Vulkan kernel:
 	// #include <libgpu/vulkan/vk/common.vk>
