@@ -77,7 +77,7 @@ void run(int argc, char** argv)
     avk2::KernelSource vk_matrix04MultiplyViaLocalMemory(avk2::getMatrix04MultiplyViaLocalMemory());
     avk2::KernelSource vk_matrix05MultiplyCooperativeMatrix(avk2::getMatrix05MultiplyCooperativeMatrix());
 
-    unsigned int ksize = 16;
+    unsigned int ksize = 128;
     unsigned int w = ksize * 32;
     unsigned int k = ksize * 8;
     unsigned int h = ksize * 16;
@@ -122,17 +122,36 @@ void run(int argc, char** argv)
         "02 using local memory",
     };
 
-    int coop_matrix_size = 16;
+    const std::string coop_matrix_algorithm_name = "03 using cooperative matrix [+Prestige Points]";
+
+    int coop_matrix_size = 0;
     bool I_Want_Super_Puper_Prestige_Points = true;
     if (I_Want_Super_Puper_Prestige_Points) {
         if (context.type() == gpu::Context::TypeCUDA) {
             algorithm_names.push_back("03 using WMMA (Tensor Cores) [+Prestige Points]");
         }
         if (context.type() == gpu::Context::TypeVulkan) {
-            rassert(context.vk()->device().supportsExtension("VK_KHR_cooperative_matrix"), 32452365324632);
-            auto device_supported_cooperative_matrix_sizes = context.vk()->device().supportedCooperativeMatrixSizes();
-            rassert(context.vk()->device().isCooperativeMatrixSizeSupported(DataType16f, DataType32f, coop_matrix_size, coop_matrix_size, coop_matrix_size), 235243524356);
-            algorithm_names.push_back("03 using cooperative matrix [+Prestige Points]");
+            const avk2::Device &vk_device = context.vk()->device();
+            if (vk_device.supportsExtension("VK_KHR_cooperative_matrix")) {
+                assert((w % COOPMAT_TILE_W == 0) && (h % COOPMAT_TILE_H == 0) && (k % COOPMAT_TILE_K == 0));
+
+                for (const auto [dt1, dt2, m, n, k] : vk_device.supportedCooperativeMatrixSizes()) {
+                    if (dt1 != DataType16f || dt2 != DataType32f) continue;
+                    if (m != n || n != k) continue;
+                    if (m == 0 || m > COOPMAT_TILE_K || COOPMAT_TILE_K % m != 0) continue;
+                    if (COOPMAT_TILE_W % (COOPMAT_WG_W * m) != 0 || COOPMAT_TILE_H % (COOPMAT_WG_H * m) != 0) continue;
+
+                    if (m > coop_matrix_size) {
+                        coop_matrix_size = m;
+                    }
+                }
+
+                if (coop_matrix_size > 0) {
+                    avk2::SpecializationConstants coop_matrix_spec_constants;
+                    coop_matrix_spec_constants.add(0, static_cast<uint32_t>(coop_matrix_size));
+                    vk_matrix05MultiplyCooperativeMatrix.setSpecializationConstants(coop_matrix_spec_constants);
+                }
+            }
         }
     }
 
@@ -186,8 +205,10 @@ void run(int argc, char** argv)
                        vk_matrix03MultiplyNaive.exec(params, gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
                     } else if (algorithm == "02 using local memory") {
                        vk_matrix04MultiplyViaLocalMemory.exec(params, gpu::WorkSize(GROUP_SIZE_X, GROUP_SIZE_Y, w, h), matrix_a_gpu, matrix_b_gpu, matrix_c_gpu);
-                    } else if (algorithm == "03 using cooperative matrix [+Prestige Points]") {
-                        vk_matrix05MultiplyCooperativeMatrix.exec(params, gpu::WorkSize(GROUP_SIZE_X * 2, GROUP_SIZE_Y / 2, w / coop_matrix_size, h / coop_matrix_size), matrix_a16_gpu, matrix_b16_gpu, matrix_c_gpu);
+                    } else if (algorithm == coop_matrix_algorithm_name) {
+                        size_t tiles_w = ((size_t)(w) + COOPMAT_TILE_W - 1) / COOPMAT_TILE_W;
+                        size_t tiles_h = ((size_t)(h) + COOPMAT_TILE_H - 1) / COOPMAT_TILE_H;
+                        vk_matrix05MultiplyCooperativeMatrix.exec(params, gpu::WorkSize(COOP_GROUP_SIZE_X, COOP_GROUP_SIZE_Y, tiles_w * COOP_GROUP_SIZE_X, tiles_h * COOP_GROUP_SIZE_Y), matrix_a16_gpu, matrix_b16_gpu, matrix_c_gpu);
                     } else {
                         rassert(false, 7652345234321, algorithm, algorithm_index);
                     }

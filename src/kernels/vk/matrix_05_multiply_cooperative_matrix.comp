@@ -23,19 +23,14 @@ layout (push_constant) uniform PushConstants {
     uint k;
 } params;
 
-// hardcoded matrix scale (locally 8)
-#define M 16
+layout (constant_id = 0) const uint M = 8;
 
-#define COOP_GROUP_SIZE_X (GROUP_SIZE_X * 2)
-#define COOP_GROUP_SIZE_Y (GROUP_SIZE_Y / 2)
+#define WG_W COOPMAT_WG_W
+#define WG_H COOPMAT_WG_H
 
-#define WG_W (COOP_GROUP_SIZE_X)
-#define WG_H (COOP_GROUP_SIZE_Y / M)
-
-// shared mem dimensions
-#define TILE_W (M * COOP_GROUP_SIZE_X)
-#define TILE_H (M * COOP_GROUP_SIZE_Y)
-#define TILE_K 32
+#define TILE_W COOPMAT_TILE_W
+#define TILE_H COOPMAT_TILE_H
+#define TILE_K COOPMAT_TILE_K
 #define PAD 1
 
 #define C_ROWS (TILE_H / (WG_H * M))
@@ -77,28 +72,36 @@ void main()
 
     [[unroll]] for (uint n = 0; n < A_ELEMS_PER_THREAD; ++n) {
         uint i = tid + n * NUM_INVOCATIONS;
-        reg_a[n] = a[left_a + (i / TILE_K) * params.k + (i % TILE_K)];
+        uint row = i / TILE_K;
+        uint col = i % TILE_K;
+
+        reg_a[n] = a[left_a + row * params.k + col];
     }
     [[unroll]] for (uint n = 0; n < B_ELEMS_PER_THREAD; ++n) {
         uint i = tid + n * NUM_INVOCATIONS;
-        reg_b[n] = b[left_b + (i / TILE_W) * params.w + (i % TILE_W)];
+        uint row = i / TILE_W;
+        uint col = i % TILE_W;
+
+        reg_b[n] = b[left_b + row * params.w + col];
     }
 
     for (uint ch = 0; ch < params.k; ch += TILE_K) {
         barrier();
 
-        for (uint i = tid; i < TILE_H * TILE_K; i += numThreads) {
+        [[unroll]] for (uint n = 0; n < A_ELEMS_PER_THREAD; ++n) {
+            uint i = tid + n * NUM_INVOCATIONS;
             uint row = i / TILE_K;
             uint col = i % TILE_K;
 
-            loc_a[row * (TILE_K + PAD) + col] = a[left_a + row * params.k + ch + col];
+            loc_a[row * (TILE_K + PAD) + col] = reg_a[n];
         }
 
-        for (uint i = tid; i < TILE_K * TILE_W; i += numThreads) {
+        [[unroll]] for (uint n = 0; n < B_ELEMS_PER_THREAD; ++n) {
+            uint i = tid + n * NUM_INVOCATIONS;
             uint row = i / TILE_W;
             uint col = i % TILE_W;
 
-            loc_b[row * (TILE_W + PAD) + col] = b[left_b + (row + ch) * params.w + col];
+            loc_b[row * (TILE_W + PAD) + col] = reg_b[n];
         }
 
         barrier();
@@ -107,11 +110,17 @@ void main()
         if (nextCh < params.k) {
             [[unroll]] for (uint n = 0; n < A_ELEMS_PER_THREAD; ++n) {
                 uint i = tid + n * NUM_INVOCATIONS;
-                reg_a[n] = a[left_a + (i / TILE_K) * params.k + nextCh + (i % TILE_K)];
+                uint row = i / TILE_K;
+                uint col = i % TILE_K;
+
+                reg_a[n] = a[left_a + row * params.k + nextCh + col];
             }
             [[unroll]] for (uint n = 0; n < B_ELEMS_PER_THREAD; ++n) {
                 uint i = tid + n * NUM_INVOCATIONS;
-                reg_b[n] = b[(nextCh + (i / TILE_W)) * params.w + left_b + (i % TILE_W)];
+                uint row = i / TILE_W;
+                uint col = i % TILE_W;
+
+                reg_b[n] = b[left_b + (row + nextCh) * params.w + col];
             }
         }
 
@@ -122,12 +131,13 @@ void main()
 
             for (uint i = 0; i < C_ROWS; ++i) {
                 uint si = M * (C_ROWS * warpInTile.y + i);
+                uint stride = TILE_K + PAD;
 
                 coopMatLoad(
                     mat_a[i],
                     loc_a,
-                    si * (TILE_K + PAD) + sk,
-                    (TILE_K + PAD),
+                    si * stride + sk,
+                    stride,
                     gl_CooperativeMatrixLayoutRowMajor
                 );
             }
@@ -136,14 +146,13 @@ void main()
 
             for (uint j = 0; j < C_COLS; ++j) {
                 uint sj = M * (C_COLS * warpInTile.x + j);
-
-                uint b_off = sk * (TILE_W + PAD) + sj;
+                uint stride = TILE_W + PAD;
 
                 coopMatLoad(
                     mat_b,
                     loc_b,
-                    b_off,
-                    (TILE_W + PAD),
+                    sk * stride + sj,
+                    stride,
                     gl_CooperativeMatrixLayoutRowMajor
                 );
 
