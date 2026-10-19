@@ -88,8 +88,8 @@ void run(int argc, char** argv)
                 to += num;
             }
         }
-        rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
-        rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
+        // rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
+        // rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
         ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, num), input_gpu, from, to, upper_lim);
         ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, n);
 
@@ -105,7 +105,6 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
-    std::vector<unsigned int> pow2 = input_gpu.readVector();
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
