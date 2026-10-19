@@ -5,6 +5,8 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
+#pragma OPENCL EXTENSION cl_khr_subgroups : enable
+
 __attribute__((reqd_work_group_size(GROUP_SIZE_ACC, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
     __global const uint* pow2_sum,
