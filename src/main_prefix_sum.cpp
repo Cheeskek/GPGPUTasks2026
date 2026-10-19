@@ -31,6 +31,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
     unsigned int n = 100*1000*1000;
+    // unsigned int n = 300;
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -78,14 +79,16 @@ void run(int argc, char** argv)
 
         int from = 0, to = n;
         int num = to - from;
-        while (2 * num > GROUP_SIZE) {
+        while (2 * num >= GROUP_SIZE) {
             gpu::WorkSize workSize(GROUP_SIZE, num);
             ocl_sum_reduction.exec(workSize, input_gpu, from, to);
-            from = to;
-            num = (num + 1) / 2;
-            to += num;
+            for (int i = 0; i < 9; i++) {
+                from = to;
+                num = (num + 1) / 2;
+                to += num;
+            }
         }
-        rassert(2 * n - from <= GROUP_SIZE, 19171947583, from, to, n);
+        rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
         rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
         ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, num), input_gpu, from, to, upper_lim);
         ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, n);
