@@ -12,8 +12,8 @@ __kernel void prefix_sum_02_prefix_accumulation(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int group = (get_global_id(0) + 1) >> 8;
-    unsigned int x = (get_global_id(0) + 1) & ((1 << 8) - 1);
+    unsigned int group = (get_global_id(0)) >> 8;
+    unsigned int x = (get_global_id(0)) & ((1 << 8) - 1);
     unsigned int added = group << 8;
     unsigned int from = 0;
     unsigned int to = n;
@@ -28,5 +28,5 @@ __kernel void prefix_sum_02_prefix_accumulation(
         n = (n + 1) / 2;
         to += n;
     }
-    prefix_sum_accum[get_global_id(0)] = sum + group_sum_accum[group];
+    prefix_sum_accum[get_global_id(0) - 1] = sum + group_sum_accum[group];
 }

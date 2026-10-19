@@ -92,7 +92,7 @@ void run(int argc, char** argv)
         // rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
         // ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, 512), input_gpu, from, to);
         ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / GROUP_SIZE + 1), input_gpu, group_sum_accum_gpu, n);
-        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n + 1), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);
 
         times.push_back(t.elapsed());
     }
