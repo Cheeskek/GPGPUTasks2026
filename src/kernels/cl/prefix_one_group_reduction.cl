@@ -5,13 +5,13 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
+__attribute__((reqd_work_group_size(GROUP_SIZE_ACC, 1, 1)))
 __kernel void prefix_one_group_reduction(
     __global const uint* pow2_sum,
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int x = get_global_id(0) << 8;
+    unsigned int x = get_global_id(0) << ACC_SHIFT;
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = 0;

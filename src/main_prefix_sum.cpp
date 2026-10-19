@@ -67,7 +67,7 @@ void run(int argc, char** argv)
         }
         std::cout << "Upper limit: " << upper_lim << std::endl;
     }
-    gpu::gpu_mem_32u input_gpu(upper_lim), prefix_sum_accum_gpu(n), group_sum_accum_gpu(n / GROUP_SIZE + 1);
+    gpu::gpu_mem_32u input_gpu(upper_lim), prefix_sum_accum_gpu(n), group_sum_accum_gpu(n / GROUP_SIZE_ACC + 1);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);
@@ -91,8 +91,8 @@ void run(int argc, char** argv)
         // rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
         // rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
         // ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, 512), input_gpu, from, to);
-        ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, n / GROUP_SIZE + 1), input_gpu, group_sum_accum_gpu, n);
-        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE, n + 1), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);
+        ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE_ACC, n / GROUP_SIZE_ACC + 1), input_gpu, group_sum_accum_gpu, n);
+        ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_ACC, n + 1), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);
 
         times.push_back(t.elapsed());
     }
