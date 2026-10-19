@@ -20,7 +20,9 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = 0;
-    while (x > 0) {
+
+    #pragma unroll
+    for (int i = 0; i < ACC_SHIFT; ++i) {
         if (x & 1) {
             sum += pow2_sum[from + x + added - 1];
         }

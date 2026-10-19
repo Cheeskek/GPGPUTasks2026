@@ -25,7 +25,9 @@ __kernel void prefix_sum_01_reduction(
     unsigned int out_size = (num + 1) / 2;
     unsigned int base = end;
     unsigned int stride = GROUP_SIZE;
-    while (sz > 1) {
+
+    #pragma unroll
+    for (int i = 0; i < 9; ++i) {
         unsigned int new_sz = (sz + 1) / 2;
         if (lid < new_sz) {
             unsigned int i = from + 2 * lid;
