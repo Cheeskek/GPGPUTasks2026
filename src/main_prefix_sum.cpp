@@ -67,7 +67,7 @@ void run(int argc, char** argv)
         }
         std::cout << "Upper limit: " << upper_lim << std::endl;
     }
-    gpu::gpu_mem_32u input_gpu(upper_lim), prefix_sum_accum_gpu(n), group_sum_accum_gpu(n / GROUP_SIZE_ACC + 1);
+    gpu::gpu_mem_32u input_gpu(upper_lim), prefix_sum_accum_gpu(n + 1), group_sum_accum_gpu(n / GROUP_SIZE_ACC + 1);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
     input_gpu.writeN(as.data(), n);

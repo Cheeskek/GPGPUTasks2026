@@ -11,9 +11,14 @@ __kernel void prefix_one_group_reduction(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int x = get_global_id(0) << ACC_SHIFT;
+    unsigned int x = get_global_id(0);
     unsigned int from = 0;
     unsigned int to = n;
+    for (int i = 0; i < ACC_SHIFT; ++i) {
+        from = to;
+        n = (n + 1) / 2;
+        to += n;
+    }
     unsigned int sum = 0;
     while (x > 0) {
         if (x & 1) {

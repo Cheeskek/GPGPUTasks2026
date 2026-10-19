@@ -12,14 +12,14 @@ __kernel void prefix_sum_02_prefix_accumulation(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    if (get_global_id(0) == 0) return;
-    unsigned int group = (get_global_id(0)) >> ACC_SHIFT;
+    unsigned int warp_size = get_sub_group_size();
+    unsigned int group = get_global_id(0) >> ACC_SHIFT;
     unsigned int group_v = group_sum_accum[group];
-    unsigned int x = (get_global_id(0)) & ((1 << ACC_SHIFT) - 1);
+    unsigned int x = get_global_id(0) & (((1 << ACC_SHIFT) - 1) & ~(warp_size - 1));
     unsigned int added = group << ACC_SHIFT;
     unsigned int from = 0;
     unsigned int to = n;
-    unsigned int sum = 0;
+    unsigned int sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
 
     #pragma unroll
     for (int i = 0; i < ACC_SHIFT; ++i) {
@@ -32,5 +32,5 @@ __kernel void prefix_sum_02_prefix_accumulation(
         n = (n + 1) / 2;
         to += n;
     }
-    prefix_sum_accum[get_global_id(0) - 1] = sum + group_v;
+    prefix_sum_accum[get_global_id(0)] = sum + group_v;
 }
