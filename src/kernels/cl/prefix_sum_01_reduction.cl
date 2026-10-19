@@ -6,7 +6,10 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void prefix_sum_01_reduction(__global uint* pow2_sum, unsigned int start, unsigned int end)
+__kernel void prefix_sum_01_reduction(
+    __global uint* pow2_sum,
+    unsigned int start,
+    unsigned int end)
 {
     __local unsigned int buf[GROUP_SIZE * 4];
     unsigned int gid = get_global_id(0);

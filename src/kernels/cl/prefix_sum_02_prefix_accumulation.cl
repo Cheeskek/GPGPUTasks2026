@@ -9,21 +9,24 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
     __global const uint* pow2_sum,
     __global       uint* prefix_sum_accum,
+    __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int x = get_global_id(0) + 1;
+    unsigned int group = (get_global_id(0) + 1) >> 8;
+    unsigned int x = (get_global_id(0) + 1) & ((1 << 8) - 1);
+    unsigned int added = group << 8;
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = 0;
     while (x > 0) {
         if (x & 1) {
-            /* rassert(from + x - 1 < 2 * get_global_size(0), 198744); */
-            sum += pow2_sum[from + x - 1];
+            sum += pow2_sum[from + x + added - 1];
         }
-        x /= 2;
+        x >>= 1;
+        added >>= 1;
         from = to;
         n = (n + 1) / 2;
         to += n;
     }
-    prefix_sum_accum[get_global_id(0)] = sum;
+    prefix_sum_accum[get_global_id(0)] = sum + group_sum_accum[group];
 }
