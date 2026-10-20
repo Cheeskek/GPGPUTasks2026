@@ -87,9 +87,11 @@ void run(int argc, char** argv)
         while (num > 1) {
             gpu::WorkSize workSize(GROUP_SIZE, num);
             ocl_sum_reduction.exec(workSize, input_gpu, from, to);
-            from = to;
-            num /= 2;
-            to += num;
+            for (int i = 0; i < 9; ++i) {
+                from = to;
+                num /= 2;
+                to += num;
+            }
         }
         ocl_one_group_accum.exec(gpu::WorkSize(GROUP_SIZE_ACC, n / GROUP_SIZE + 1), input_gpu, group_sum_accum_gpu, n);
         ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_ACC, n + 1), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);

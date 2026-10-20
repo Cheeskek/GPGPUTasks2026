@@ -16,6 +16,7 @@ const ProgramBinaries& getFillBufferWithZeros();
 const ProgramBinaries& getPrefixSum01Reduction();
 const ProgramBinaries& getPrefixOneGroupReduction();
 const ProgramBinaries& getPrefixOneGroupAccum();
+const ProgramBinaries& getPrefixFinalReduction();
 const ProgramBinaries& getPrefixSum02PrefixAccumulation();
 }
 

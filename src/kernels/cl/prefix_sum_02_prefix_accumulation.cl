@@ -27,23 +27,16 @@ __kernel void prefix_sum_02_prefix_accumulation(
     const unsigned int lid = get_local_id(0);
     const unsigned int lane = lid & (WARP_SIZE - 1);
     const unsigned int warp = lid >> WARP_SHIFT;
+    const unsigned int warp_base = warp * WARP_SIZE;
 
     cache[lid] = pow2_sum[get_global_id(0)];
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    #pragma unroll
-    for (unsigned int offset = 1; offset < WARP_SIZE; offset <<= 1) {
-        unsigned int v = 0;
-        if (lane >= offset) {
-            v = cache[warp * WARP_SIZE + lane - offset];
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
-        if (lane >= offset) {
-            cache[warp * WARP_SIZE + lane] += v;
-        }
-        barrier(CLK_LOCAL_MEM_FENCE);
+    unsigned int acc = 0;
+    for (unsigned int i = 0; i <= lane; ++i) {
+        acc += cache[warp_base + i];
     }
-    sum = cache[lid];
+    sum = acc;
 #endif
 
     from = to;
