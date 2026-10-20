@@ -18,8 +18,33 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int added = group << ACC_SHIFT;
     unsigned int from = 0;
     unsigned int to = n;
-    unsigned int init_sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
-    unsigned int sum = init_sum;
+    unsigned int sum;
+
+#ifdef USE_SUBGROUPS
+    sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
+#else
+    __local unsigned int cache[GROUP_SIZE_ACC];
+    const unsigned int lid = get_local_id(0);
+    const unsigned int lane = lid & (WARP_SIZE - 1);
+    const unsigned int warp = lid >> WARP_SHIFT;
+
+    cache[lid] = pow2_sum[get_global_id(0)];
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    #pragma unroll
+    for (unsigned int offset = 1; offset < WARP_SIZE; offset <<= 1) {
+        unsigned int v = 0;
+        if (lane < offset) {
+            v = cache[warp * WARP_SIZE + lane];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (lane >= offset) {
+            cache[warp * WARP_SIZE + lane] += v;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    sum = cache[lid];
+#endif
 
     from = to;
     n >>= WARP_SHIFT;

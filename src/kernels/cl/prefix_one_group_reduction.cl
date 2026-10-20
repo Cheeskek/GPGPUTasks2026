@@ -15,12 +15,33 @@ __kernel void prefix_one_group_reduction(
 {
     __local unsigned int buf[BUF_SIZE];
     const unsigned int lid = get_local_id(0);
+    const unsigned int lane = lid & (WARP_SIZE - 1);
+    const unsigned int warp = lid >> WARP_SHIFT;
 
     unsigned int x = get_global_id(0);
-    unsigned int sum = sub_group_reduce_add(pow2_sum[x]);
+    unsigned int sum;
+
+#ifdef USE_SUBGROUPS
+    sum = sub_group_reduce_add(pow2_sum[x]);
+#else
+    __local unsigned int cache[GROUP_SIZE];
+    cache[lid] = pow2_sum[x];
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    #pragma unroll
+    for (unsigned int offset = WARP_SIZE / 2; offset > 0; offset >>= 1) {
+        if (lane < offset) {
+            cache[warp * WARP_SIZE + lane] += cache[warp * WARP_SIZE + lane + offset];
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    sum = cache[warp * WARP_SIZE];
+#endif
+
     x >>= WARP_SHIFT;
-    if ((lid & (WARP_SIZE - 1)) == 0) {
-        pow2_sum[to + x] = buf[lid >> WARP_SHIFT] = sum;
+    if (lane == 0) {
+        buf[warp] = sum;
+        pow2_sum[to + x] = sum;
     }
 
     barrier(CLK_LOCAL_MEM_FENCE);
