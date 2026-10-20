@@ -31,7 +31,14 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
     unsigned int n = 100*1000*1000;
-    // unsigned int n = 300;
+    // unsigned int n = (1 << 20);
+    unsigned real_n = n;
+    n = 1;
+    unsigned ctz = 0;
+    while (n < real_n) {
+        n <<= 1;
+        ++ctz;
+    }
     std::vector<unsigned int> as(n, 0);
     size_t total_sum = 0;
     for (size_t i = 0; i < n; ++i) {
@@ -57,16 +64,8 @@ void run(int argc, char** argv)
                   << n / 1e6 / elapsed << " uint millions/s)" << std::endl;
     }
 
-    // Аллоцируем буферы в VRAM
-    unsigned int upper_lim = 1;
-    {
-        unsigned int copy_n = n;
-        while (copy_n > 1) {
-            upper_lim += copy_n;
-            copy_n = (copy_n + 1) / 2;
-        }
-        std::cout << "Upper limit: " << upper_lim << std::endl;
-    }
+    unsigned int upper_lim = 2 * n;
+    std::cout << n << ' ' << upper_lim << '\n';
     gpu::gpu_mem_32u input_gpu(upper_lim), prefix_sum_accum_gpu(n + 1), group_sum_accum_gpu(n / GROUP_SIZE_ACC + 1);
 
     // Прогружаем входные данные по PCI-E шине: CPU RAM -> GPU VRAM
@@ -79,14 +78,12 @@ void run(int argc, char** argv)
 
         int from = 0, to = n;
         int num = to - from;
-        for (int i = 0; i < 3; ++i) {
+        while (num > 1) {
             gpu::WorkSize workSize(GROUP_SIZE, num);
             ocl_sum_reduction.exec(workSize, input_gpu, from, to);
-            for (int i = 0; i < 9; i++) {
-                from = to;
-                num = (num + 1) / 2;
-                to += num;
-            }
+            from = to;
+            num /= 2;
+            to += num;
         }
         // rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
         // rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
@@ -106,6 +103,8 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+
+    n = real_n;
 
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {

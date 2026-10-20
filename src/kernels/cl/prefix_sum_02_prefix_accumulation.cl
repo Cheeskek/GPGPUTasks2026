@@ -5,8 +5,6 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-#pragma OPENCL EXTENSION cl_khr_subgroups : enable
-
 __attribute__((reqd_work_group_size(GROUP_SIZE_ACC, 1, 1)))
 __kernel void prefix_sum_02_prefix_accumulation(
     __global const uint* pow2_sum,
@@ -14,14 +12,22 @@ __kernel void prefix_sum_02_prefix_accumulation(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int warp_size = get_sub_group_size();
     unsigned int group = get_global_id(0) >> ACC_SHIFT;
     unsigned int group_v = group_sum_accum[group];
-    unsigned int x = get_global_id(0) & (((1 << ACC_SHIFT) - 1) & ~(warp_size - 1));
+    unsigned int x = get_global_id(0) & (((1 << ACC_SHIFT) - 1) & ~(WARP_SIZE - 1));
     unsigned int added = group << ACC_SHIFT;
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
+
+    #pragma unroll
+    for (int i = 0; i < WARP_SHIFT; ++i) {
+        from = to;
+        n = (n + 1) / 2;
+        to += n;
+    }
+    x >>= WARP_SHIFT;
+    added >>= WARP_SHIFT;
 
     #pragma unroll
     for (int i = 0; i < ACC_SHIFT; ++i) {
