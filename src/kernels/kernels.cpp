@@ -4,7 +4,6 @@
 #include "cl/generated_kernels/prefix_sum_01_reduction.h"
 #include "cl/generated_kernels/prefix_one_group_reduction.h"
 #include "cl/generated_kernels/prefix_one_group_accum.h"
-#include "cl/generated_kernels/prefix_final_reduction.h"
 #include "cl/generated_kernels/prefix_sum_02_prefix_accumulation.h"
 
 #include "vk/generated_kernels/aplusb_comp.h"
@@ -60,11 +59,6 @@ const ProgramBinaries& getPrefixOneGroupReduction()
 const ProgramBinaries& getPrefixOneGroupAccum()
 {
     return opencl_binaries_prefix_one_group_accum;
-}
-
-const ProgramBinaries& getPrefixFinalReduction()
-{
-    return opencl_binaries_prefix_final_reduction;
 }
 
 const ProgramBinaries& getPrefixSum02PrefixAccumulation()
