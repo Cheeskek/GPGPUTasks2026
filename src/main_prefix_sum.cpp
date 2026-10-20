@@ -28,6 +28,7 @@ void run(int argc, char** argv)
 
     ocl::KernelSource ocl_sum_reduction(ocl::getPrefixSum01Reduction());
     ocl::KernelSource ocl_one_group_reduction(ocl::getPrefixOneGroupReduction());
+    ocl::KernelSource ocl_one_group_accum(ocl::getPrefixOneGroupAccum());
     ocl::KernelSource ocl_prefix_accumulation(ocl::getPrefixSum02PrefixAccumulation());
 
     unsigned int n = 100*1000*1000;
@@ -78,6 +79,11 @@ void run(int argc, char** argv)
 
         int from = 0, to = n;
         int num = to - from;
+
+        ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, num), input_gpu, from, to);
+        num >>= WARP_SHIFT;
+        from = to;
+        to = from + num;
         while (num > 1) {
             gpu::WorkSize workSize(GROUP_SIZE, num);
             ocl_sum_reduction.exec(workSize, input_gpu, from, to);
@@ -85,10 +91,7 @@ void run(int argc, char** argv)
             num /= 2;
             to += num;
         }
-        // rassert(upper_lim - from <= GROUP_SIZE, 19171947583, from, to, n);
-        // rassert(to - from <= GROUP_SIZE, 19171947584, from, to, n);
-        // ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE, 512), input_gpu, from, to);
-        ocl_one_group_reduction.exec(gpu::WorkSize(GROUP_SIZE_ACC, n / GROUP_SIZE_ACC + 1), input_gpu, group_sum_accum_gpu, n);
+        ocl_one_group_accum.exec(gpu::WorkSize(GROUP_SIZE_ACC, n / GROUP_SIZE + 1), input_gpu, group_sum_accum_gpu, n);
         ocl_prefix_accumulation.exec(gpu::WorkSize(GROUP_SIZE_ACC, n + 1), input_gpu, prefix_sum_accum_gpu, group_sum_accum_gpu, n);
 
         times.push_back(t.elapsed());
@@ -103,6 +106,21 @@ void run(int argc, char** argv)
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_prefix_sum = prefix_sum_accum_gpu.readVector();
+
+    // {
+    //     int from = n;
+    //     int num = n >> WARP_SHIFT;
+    //     int to = from + num;
+    //     while (num > 1) {
+    //         for (int i = from; i < to; ++i) {
+    //             std::cout << gpu_prefix_sum[i] << ' ';
+    //         }
+    //         std::cout << '\n';
+    //         from = to;
+    //         num >>= 1;
+    //         to = from + num;
+    //     }
+    // }
 
     n = real_n;
 

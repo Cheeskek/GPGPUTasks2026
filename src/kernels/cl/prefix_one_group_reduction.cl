@@ -5,29 +5,31 @@
 #include "helpers/rassert.cl"
 #include "../defines.h"
 
-__attribute__((reqd_work_group_size(GROUP_SIZE_ACC, 1, 1)))
+#define BUF_SIZE (GROUP_SIZE / WARP_SIZE)
+
+__attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_one_group_reduction(
-    __global const uint* pow2_sum,
-    __global       uint* group_sum_accum,
-    unsigned int n)
+    __global uint* pow2_sum,
+    unsigned int from,
+    unsigned int to)
 {
+    __local unsigned int buf[BUF_SIZE];
+    const unsigned int lid = get_local_id(0);
+
     unsigned int x = get_global_id(0);
-    unsigned int from = 0;
-    unsigned int to = n;
-    for (int i = 0; i < ACC_SHIFT; ++i) {
-        from = to;
-        n = (n + 1) / 2;
-        to += n;
+    unsigned int sum = sub_group_reduce_add(pow2_sum[x]);
+    x >>= WARP_SHIFT;
+    if ((lid & (WARP_SIZE - 1)) == 0) {
+        pow2_sum[to + x] = buf[lid >> WARP_SHIFT] = sum;
     }
-    unsigned int sum = 0;
-    while (x > 0) {
-        if (x & 1) {
-            sum += pow2_sum[from + x - 1];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    if (lid == 0) {
+        unsigned int sum = buf[0];
+        for (int i = 1; i < BUF_SIZE; ++i) {
+            sum += buf[i];
+            buf[i] = sum;
         }
-        x >>= 1;
-        from = to;
-        n = (n + 1) / 2;
-        to += n;
     }
-    group_sum_accum[get_global_id(0)] = sum;
 }

@@ -18,19 +18,17 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int added = group << ACC_SHIFT;
     unsigned int from = 0;
     unsigned int to = n;
-    unsigned int sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
+    unsigned int init_sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
+    unsigned int sum = init_sum;
 
-    #pragma unroll
-    for (int i = 0; i < WARP_SHIFT; ++i) {
-        from = to;
-        n = (n + 1) / 2;
-        to += n;
-    }
+    from = to;
+    n >>= WARP_SHIFT;
+    to = from + n;
     x >>= WARP_SHIFT;
     added >>= WARP_SHIFT;
 
     #pragma unroll
-    for (int i = 0; i < ACC_SHIFT; ++i) {
+    for (int i = WARP_SHIFT; i < ACC_SHIFT; ++i) {
         if (x & 1) {
             sum += pow2_sum[from + x + added - 1];
         }
