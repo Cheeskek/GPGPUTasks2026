@@ -34,8 +34,8 @@ __kernel void prefix_sum_02_prefix_accumulation(
     #pragma unroll
     for (unsigned int offset = 1; offset < WARP_SIZE; offset <<= 1) {
         unsigned int v = 0;
-        if (lane < offset) {
-            v = cache[warp * WARP_SIZE + lane];
+        if (lane >= offset) {
+            v = cache[warp * WARP_SIZE + lane - offset];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
         if (lane >= offset) {
