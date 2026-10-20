@@ -20,7 +20,7 @@ __kernel void prefix_sum_02_prefix_accumulation(
     unsigned int to = n;
     unsigned int sum;
 
-#ifdef USE_SUBGROUPS
+#if USE_SUBGROUPS
     sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
 #else
     __local unsigned int cache[GROUP_SIZE_ACC];

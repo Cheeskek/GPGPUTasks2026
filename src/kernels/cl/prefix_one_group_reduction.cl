@@ -21,7 +21,7 @@ __kernel void prefix_one_group_reduction(
     unsigned int x = get_global_id(0);
     unsigned int sum;
 
-#ifdef USE_SUBGROUPS
+#if USE_SUBGROUPS
     sum = sub_group_reduce_add(pow2_sum[x]);
 #else
     __local unsigned int cache[GROUP_SIZE];
