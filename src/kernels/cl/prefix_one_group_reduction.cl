@@ -7,6 +7,7 @@
 
 #define BUF_SIZE (GROUP_SIZE / WARP_SIZE)
 
+// n is WARP aligned
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_one_group_reduction(
     __global uint* pow2_sum,
@@ -42,15 +43,5 @@ __kernel void prefix_one_group_reduction(
     if (lane == 0) {
         buf[warp] = sum;
         pow2_sum[to + x] = sum;
-    }
-
-    barrier(CLK_LOCAL_MEM_FENCE);
-
-    if (lid == 0) {
-        unsigned int sum = buf[0];
-        for (int i = 1; i < BUF_SIZE; ++i) {
-            sum += buf[i];
-            buf[i] = sum;
-        }
     }
 }

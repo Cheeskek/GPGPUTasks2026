@@ -12,7 +12,10 @@ __kernel void prefix_sum_reduction(
     unsigned int to)
 {
     unsigned int x = get_global_id(0);
-    if (x < to - from && !(x & 1)) {
-        pow2_sum[to + (x / 2)] = pow2_sum[from + x] + pow2_sum[from + x + 1];
+    unsigned int num = to - from;
+    if (!(x & 1)) {
+        pow2_sum[to + (x / 2)] =
+            (x < num ? pow2_sum[from + x] : 0) +
+            (x + 1 < num ? pow2_sum[from + x + 1] : 0);
     }
 }

@@ -28,7 +28,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
-    int n = 1 << 30;
+    int n = 100*1000*1000;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -64,15 +64,13 @@ void run(int argc, char** argv)
         std::cout << "CPU std::sort effective RAM bandwidth: " << memory_size_gb / elapsed << " GB/s (" << n / 1e6 / elapsed << " uint millions/s)" << std::endl;
     }
 
-    int real_n = n;
-    // n = 1 << (32 - __builtin_clz(n) - 1);
-    // std::cout << real_n << ' ' << n << '\n';
-
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), output_gpu(n);
     gpu::gpu_mem_32u scanner(2 * n), locations(n), group_locations(n);
     gpu::gpu_mem_32u mid_bucket_accum(1);
 
+    input_gpu.fill(max_value);
+    input_gpu.writeN(as.data(), n);
     output_gpu.fill(0);
     scanner.fill(0);
     locations.fill(0);
@@ -82,8 +80,6 @@ void run(int argc, char** argv)
     // Запускаем кернел (несколько раз и с замером времени выполнения)
     std::vector<double> times;
     for (int iter = 0; iter < 10; ++iter) {
-        input_gpu.writeN(as.data(), n);
-
         timer t;
 
         for (int radx = 0; radx < (32 / RADIX_SHIFT); ++radx) {
@@ -101,7 +97,7 @@ void run(int argc, char** argv)
                     gpu::WorkSize workSize(GROUP_SIZE, num);
                     ocl_prefixReduce.exec(workSize, scanner, from, to);
                     from = to;
-                    num /= 2;
+                    num = (num + 1) / 2;
                     to += num;
                 }
                 ocl_prefixOneGroupAccum.exec(
@@ -132,8 +128,6 @@ void run(int argc, char** argv)
     // Вычисляем достигнутую эффективную пропускную способность видеопамяти (из соображений что мы отработали в один проход - считали массив и сохранили его переупорядоченным)
     double memory_size_gb = sizeof(unsigned int) * 2 * n / 1024.0 / 1024.0 / 1024.0;
     std::cout << "GPU radix-sort median effective VRAM bandwidth: " << memory_size_gb / stats::median(times) << " GB/s (" << n / 1e6 / stats::median(times) << " uint millions/s)" << std::endl;
-
-    n = real_n;
 
     // Считываем результат по PCI-E шине: GPU VRAM -> CPU RAM
     std::vector<unsigned int> gpu_sorted = output_gpu.readVector();

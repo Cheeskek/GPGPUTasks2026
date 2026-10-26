@@ -1,7 +1,6 @@
 #include "kernels.h"
 
 #include "cl/generated_kernels/aplusb.h"
-#include "cl/generated_kernels/fill_buffer_with_zeros.h"
 #include "cl/generated_kernels/radix_map.h"
 #include "cl/generated_kernels/radix_put.h"
 #include "cl/generated_kernels/prefix_sum_reduction.h"
@@ -57,11 +56,6 @@ namespace ocl {
 const ocl::ProgramBinaries& getAplusB()
 {
     return opencl_binaries_aplusb;
-}
-
-const ProgramBinaries& getFillBufferWithZeros()
-{
-    return opencl_binaries_fill_buffer_with_zeros;
 }
 
 const ProgramBinaries& getRadixMap() {

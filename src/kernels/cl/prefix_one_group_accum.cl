@@ -22,7 +22,7 @@ __kernel void prefix_one_group_accum(
         }
         x >>= 1;
         from = to;
-        n /= 2;
+        n = (n + 1) / 2;
         to += n;
     }
     group_sum_accum[get_global_id(0)] = sum;
