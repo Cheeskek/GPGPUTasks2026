@@ -28,7 +28,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
-    int n = 100*1000*1000;
+    // int n = 100*1000*10;
+    int n = 256;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -65,13 +66,11 @@ void run(int argc, char** argv)
     }
 
     // Аллоцируем буферы в VRAM
-    gpu::gpu_mem_32u input_gpu(n), output_gpu(n);
-    gpu::gpu_mem_32u scanner(2 * n), locations(n), group_locations(n);
-    gpu::gpu_mem_32u mid_bucket_accum(1);
-
-    input_gpu.fill(max_value);
+    gpu::gpu_mem_32u input_gpu(n), output_gpu(n), output2_gpu(n);
+    gpu::gpu_mem_32u scanner(2 * n), locations(n), group_locations(n); gpu::gpu_mem_32u mid_bucket_accum(1); input_gpu.fill(max_value);
     input_gpu.writeN(as.data(), n);
     output_gpu.fill(0);
+    output2_gpu.fill(0);
     scanner.fill(0);
     locations.fill(0);
     group_locations.fill(0);
@@ -84,7 +83,9 @@ void run(int argc, char** argv)
 
         for (int radx = 0; radx < (32 / RADIX_SHIFT); ++radx) {
             for (int mask = 0; mask < (1 << RADIX_SHIFT); ++mask) {
-                ocl_radixMap.exec(gpu::WorkSize(GROUP_SIZE, n), input_gpu, radx, mask, scanner);
+                gpu::gpu_mem_32u& input = (radx == 0 ? input_gpu : (radx % 2 == 1 ? output2_gpu : output_gpu));
+                gpu::gpu_mem_32u& output = (radx % 2 == 1 ? output_gpu : output2_gpu);
+                ocl_radixMap.exec(gpu::WorkSize(GROUP_SIZE, n), input, radx, mask, scanner);
 
                 int from = 0, to = n;
                 int num = to - from;
@@ -109,14 +110,8 @@ void run(int argc, char** argv)
 
                 ocl_radixPut.exec(
                         gpu::WorkSize(GROUP_SIZE, n),
-                        input_gpu, output_gpu, locations, mid_bucket_accum,
+                        input, output, locations, mid_bucket_accum,
                         n, radx, mask);
-
-                std::vector<unsigned int> mid = mid_bucket_accum.readVector();
-            }
-
-            if (radx != (32 / RADIX_SHIFT) - 1) {
-                std::swap(input_gpu, output_gpu);
             }
         }
 
@@ -135,6 +130,11 @@ void run(int argc, char** argv)
     // Сверяем результат
     for (size_t i = 0; i < n; ++i) {
         rassert(sorted[i] == gpu_sorted[i], 566324523452323, sorted[i], gpu_sorted[i], i);
+    }
+
+    std::vector<unsigned int> input_values = input_gpu.readVector();
+    for (size_t i = 0; i < n; ++i) {
+        rassert(input_values[i] == as[i], 6573452432, input_values[i], as[i]);
     }
 }
 

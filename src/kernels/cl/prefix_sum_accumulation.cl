@@ -53,7 +53,7 @@ __kernel void prefix_sum_accumulation(
     added >>= WARP_SHIFT;
 
     #pragma unroll
-    for (int i = 0; i < 32; ++i) {
+    for (int i = WARP_SHIFT; i < GROUP_SHIFT; ++i) {
         if (x & 1) {
             sum += pow2_sum[from + x + added - 1];
         }
