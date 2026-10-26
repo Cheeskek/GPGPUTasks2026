@@ -7,7 +7,10 @@
 
 #define BUF_SIZE (GROUP_SIZE / WARP_SIZE)
 
-// n is WARP aligned
+#if USE_SUBGROUPS
+#  pragma OPENCL EXTENSION cl_khr_subgroup : enable
+#endif
+
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_one_group_reduction(
     __global uint* pow2_sum,
