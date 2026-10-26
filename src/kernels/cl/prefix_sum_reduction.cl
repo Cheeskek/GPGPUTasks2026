@@ -6,11 +6,13 @@
 #include "../defines.h"
 
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
-__kernel void fill_buffer_with_zeros(
-    __global uint* buffer,
-    unsigned int n)
+__kernel void prefix_sum_reduction(
+    __global uint* pow2_sum,
+    unsigned int from,
+    unsigned int to)
 {
-    const unsigned int i = get_global_id(0);
-    if (i < n)
-        buffer[i] = 0;
+    unsigned int x = get_global_id(0);
+    if (x < to - from && !(x & 1)) {
+        pow2_sum[to + (x / 2)] = pow2_sum[from + x] + pow2_sum[from + x + 1];
+    }
 }
