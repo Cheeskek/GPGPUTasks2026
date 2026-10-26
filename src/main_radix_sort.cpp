@@ -28,7 +28,7 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
-    int n = 100*1000*10;
+    int n = 100*1000*1000;
     // int n = 256;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
