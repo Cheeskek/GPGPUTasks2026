@@ -28,8 +28,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
+    // int n = 100*1000*1000;
     int n = 100*1000*1000;
-    // int n = 256;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -85,12 +85,15 @@ void run(int argc, char** argv)
             for (int mask = 0; mask < (1 << RADIX_SHIFT); ++mask) {
                 gpu::gpu_mem_32u& input = (radx == 0 ? input_gpu : (radx % 2 == 1 ? output2_gpu : output_gpu));
                 gpu::gpu_mem_32u& output = (radx % 2 == 1 ? output_gpu : output2_gpu);
-                ocl_radixMap.exec(gpu::WorkSize(GROUP_SIZE, n), input, radx, mask, scanner);
 
                 int from = 0, to = n;
                 int num = to - from;
 
-                ocl_prefixOneGroupReduce.exec(gpu::WorkSize(GROUP_SIZE, num), scanner, from, to);
+                ocl_prefixOneGroupReduce.exec(
+                        gpu::WorkSize(GROUP_SIZE, num),
+                        scanner, input,
+                        radx, mask,
+                        from, to);
                 num >>= WARP_SHIFT;
                 from = to;
                 to = from + num;
@@ -102,11 +105,11 @@ void run(int argc, char** argv)
                     to += num;
                 }
                 ocl_prefixAccum.exec(
-                        gpu::WorkSize(GROUP_SIZE, n + 1),
+                        gpu::WorkSize(GROUP_SIZE, n),
                         scanner, locations, n);
 
                 ocl_radixPut.exec(
-                        gpu::WorkSize(GROUP_SIZE, n),
+                        gpu::WorkSize(GROUP_SIZE, n + 1),
                         input, output, locations, mid_bucket_accum,
                         n, radx, mask);
             }

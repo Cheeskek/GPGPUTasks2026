@@ -14,22 +14,30 @@
 __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_one_group_reduction(
     __global uint* pow2_sum,
-    unsigned int from,
-    unsigned int to)
+    __global const uint* input,
+    unsigned int iter, unsigned int mask,
+    unsigned int from, unsigned int to)
 {
-    __local unsigned int buf[BUF_SIZE];
     const unsigned int lid = get_local_id(0);
     const unsigned int lane = lid & (WARP_SIZE - 1);
     const unsigned int warp = lid >> WARP_SHIFT;
 
+    const unsigned int count = to - from;
     unsigned int x = get_global_id(0);
+    unsigned int v = 0;
+    if (x < count) {
+        unsigned int marker = (input[x] >> (iter * RADIX_SHIFT)) & ((1 << RADIX_SHIFT) - 1);
+        v = (marker == mask ? 1 : 0);
+        pow2_sum[x] = v;
+    }
+
     unsigned int sum;
 
 #if USE_SUBGROUPS
-    sum = sub_group_reduce_add(pow2_sum[x]);
+    sum = sub_group_reduce_add(v);
 #else
     __local unsigned int cache[GROUP_SIZE];
-    cache[lid] = pow2_sum[x];
+    cache[lid] = v;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     #pragma unroll
@@ -43,8 +51,7 @@ __kernel void prefix_one_group_reduction(
 #endif
 
     x >>= WARP_SHIFT;
-    if (lane == 0) {
-        buf[warp] = sum;
+    if (lane == 0 && x < (count >> WARP_SHIFT)) {
         pow2_sum[to + x] = sum;
     }
 }

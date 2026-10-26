@@ -13,7 +13,11 @@ __kernel void prefix_sum_reduction(
 {
     unsigned int x = get_global_id(0);
     unsigned int num = to - from;
-    if (!(x & 1)) {
-        pow2_sum[to + (x / 2)] = pow2_sum[from + x] + pow2_sum[from + x + 1];
+    if (x < num && !(x & 1)) {
+        unsigned int sum = pow2_sum[from + x];
+        if (x + 1 < num) {
+            sum += pow2_sum[from + x + 1];
+        }
+        pow2_sum[to + (x / 2)] = sum;
     }
 }
