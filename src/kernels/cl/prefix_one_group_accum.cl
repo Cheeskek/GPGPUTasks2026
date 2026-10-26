@@ -11,9 +11,8 @@ __kernel void prefix_one_group_accum(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int x = (get_global_id(0) << GROUP_SHIFT) >> WARP_SHIFT;
+    unsigned int x = get_global_id(0) << GROUP_SHIFT;
     unsigned int from = n;
-    n >>= WARP_SHIFT;
     unsigned int to = from + n;
     unsigned int sum = 0;
     while (x > 0) {

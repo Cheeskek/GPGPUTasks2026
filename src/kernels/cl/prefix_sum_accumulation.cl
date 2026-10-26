@@ -15,44 +15,40 @@ __kernel void prefix_sum_accumulation(
     __global       uint* prefix_sum_accum,
     unsigned int n)
 {
-    unsigned int x = get_global_id(0) & ~(WARP_SIZE - 1);
+    unsigned int x = get_global_id(0) & ~(GROUP_SIZE - 1);
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = 0;
 
-#if USE_SUBGROUPS
-    sum = sub_group_scan_inclusive_add(pow2_sum[get_global_id(0)]);
-#else
     __local unsigned int cache[GROUP_SIZE];
     const unsigned int lid = get_local_id(0);
-    const unsigned int lane = lid & (WARP_SIZE - 1);
-    const unsigned int warp = lid >> WARP_SHIFT;
+    const unsigned int lane = lid & (GROUP_SIZE - 1);
+    const unsigned int group = lid >> GROUP_SHIFT;
 
     cache[lid] = pow2_sum[get_global_id(0)];
     barrier(CLK_LOCAL_MEM_FENCE);
 
     #pragma unroll
-    for (unsigned int offset = 1; offset < WARP_SIZE; offset <<= 1) {
+    for (unsigned int offset = 1; offset < GROUP_SIZE; offset <<= 1) {
         unsigned int v = 0;
         if (lane >= offset) {
-            v = cache[warp * WARP_SIZE + lane - offset];
+            v = cache[group * GROUP_SIZE + lane - offset];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
         if (lane >= offset) {
-            cache[warp * WARP_SIZE + lane] += v;
+            cache[group * GROUP_SIZE + lane] += v;
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
     sum = cache[lid];
-#endif
 
     from = to;
-    n >>= WARP_SHIFT;
+    n >>= GROUP_SHIFT;
     to = from + n;
-    x >>= WARP_SHIFT;
+    x >>= GROUP_SHIFT;
 
     #pragma unroll
-    for (int i = WARP_SHIFT; i < 32; ++i) {
+    for (int i = GROUP_SHIFT; i < 32; ++i) {
         if (x & 1) {
             sum += pow2_sum[from + x - 1];
         }

@@ -28,8 +28,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
-    // int n = 100*1000*1000;
     int n = 100*1000*1000;
+    // int n = 100*1000*10;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -94,7 +94,7 @@ void run(int argc, char** argv)
                         scanner, input,
                         radx, mask,
                         from, to);
-                num >>= WARP_SHIFT;
+                num >>= GROUP_SHIFT;
                 from = to;
                 to = from + num;
                 while (num > 1) {

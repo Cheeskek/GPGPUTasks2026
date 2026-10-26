@@ -19,8 +19,8 @@ __kernel void prefix_one_group_reduction(
     unsigned int from, unsigned int to)
 {
     const unsigned int lid = get_local_id(0);
-    const unsigned int lane = lid & (WARP_SIZE - 1);
-    const unsigned int warp = lid >> WARP_SHIFT;
+    const unsigned int lane = lid & (GROUP_SIZE - 1);
+    const unsigned int group = lid >> GROUP_SHIFT;
 
     const unsigned int count = to - from;
     unsigned int x = get_global_id(0);
@@ -33,25 +33,21 @@ __kernel void prefix_one_group_reduction(
 
     unsigned int sum;
 
-#if USE_SUBGROUPS
-    sum = sub_group_reduce_add(v);
-#else
     __local unsigned int cache[GROUP_SIZE];
     cache[lid] = v;
     barrier(CLK_LOCAL_MEM_FENCE);
 
     #pragma unroll
-    for (unsigned int offset = WARP_SIZE / 2; offset > 0; offset >>= 1) {
+    for (unsigned int offset = GROUP_SIZE / 2; offset > 0; offset >>= 1) {
         if (lane < offset) {
-            cache[warp * WARP_SIZE + lane] += cache[warp * WARP_SIZE + lane + offset];
+            cache[group * GROUP_SIZE + lane] += cache[group * GROUP_SIZE + lane + offset];
         }
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-    sum = cache[warp * WARP_SIZE];
-#endif
+    sum = cache[group * GROUP_SIZE];
 
-    x >>= WARP_SHIFT;
-    if (lane == 0 && x < (count >> WARP_SHIFT)) {
+    x >>= GROUP_SHIFT;
+    if (lane == 0 && x < (count >> GROUP_SHIFT)) {
         pow2_sum[to + x] = sum;
     }
 }
