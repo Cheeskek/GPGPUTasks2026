@@ -13,13 +13,9 @@ __attribute__((reqd_work_group_size(GROUP_SIZE, 1, 1)))
 __kernel void prefix_sum_accumulation(
     __global const uint* pow2_sum,
     __global       uint* prefix_sum_accum,
-    __global const uint* group_sum_accum,
     unsigned int n)
 {
-    unsigned int group = get_global_id(0) >> GROUP_SHIFT;
-    unsigned int group_v = group_sum_accum[group];
-    unsigned int x = get_global_id(0) & (((1 << GROUP_SHIFT) - 1) & ~(WARP_SIZE - 1));
-    unsigned int added = group << GROUP_SHIFT;
+    unsigned int x = get_global_id(0) & ~(WARP_SIZE - 1);
     unsigned int from = 0;
     unsigned int to = n;
     unsigned int sum = 0;
@@ -54,18 +50,16 @@ __kernel void prefix_sum_accumulation(
     n >>= WARP_SHIFT;
     to = from + n;
     x >>= WARP_SHIFT;
-    added >>= WARP_SHIFT;
 
     #pragma unroll
-    for (int i = WARP_SHIFT; i < GROUP_SHIFT; ++i) {
+    for (int i = WARP_SHIFT; i < 32; ++i) {
         if (x & 1) {
-            sum += pow2_sum[from + x + added - 1];
+            sum += pow2_sum[from + x - 1];
         }
         x >>= 1;
-        added >>= 1;
         from = to;
-        n /= 2;
+        n = (n + 1) / 2;
         to += n;
     }
-    prefix_sum_accum[get_global_id(0)] = sum + group_v;
+    prefix_sum_accum[get_global_id(0)] = sum;
 }

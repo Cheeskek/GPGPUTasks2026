@@ -101,12 +101,9 @@ void run(int argc, char** argv)
                     num = (num + 1) / 2;
                     to += num;
                 }
-                ocl_prefixOneGroupAccum.exec(
-                        gpu::WorkSize(GROUP_SIZE, n / GROUP_SIZE + 1),
-                        scanner, group_locations, n);
                 ocl_prefixAccum.exec(
                         gpu::WorkSize(GROUP_SIZE, n + 1),
-                        scanner, locations, group_locations, n);
+                        scanner, locations, n);
 
                 ocl_radixPut.exec(
                         gpu::WorkSize(GROUP_SIZE, n),
