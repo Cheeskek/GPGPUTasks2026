@@ -12,6 +12,9 @@ __kernel void prefix_one_group_accum(
     unsigned int n)
 {
     unsigned int x = get_global_id(0) << GROUP_SHIFT;
+    if (x > n) {
+        return;
+    }
     unsigned int from = n;
     unsigned int to = from + n;
     unsigned int sum = 0;
