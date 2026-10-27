@@ -28,8 +28,8 @@ void run(int argc, char** argv)
     ocl::KernelSource ocl_prefixOneGroupAccum(ocl::getPrefixOneGroupAccum());
     FastRandom r;
 
-    int n = 100*1000*1000;
-    // int n = 100*1000*10;
+    // int n = 100*1000*1000;
+    int n = 100*1000*100;
     int max_value = std::numeric_limits<int>::max();
     std::vector<unsigned int> as(n, 0);
     std::vector<unsigned int> sorted(n, 0);
@@ -67,13 +67,13 @@ void run(int argc, char** argv)
 
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), output_gpu(n), output2_gpu(n);
-    gpu::gpu_mem_32u scanner(2 * n), locations(n), group_locations(n); gpu::gpu_mem_32u mid_bucket_accum(1); input_gpu.fill(max_value);
+    gpu::gpu_mem_32u scanner(2 * n);
+    gpu::gpu_mem_32u mid_bucket_accum(2);
+    input_gpu.fill(max_value);
     input_gpu.writeN(as.data(), n);
     output_gpu.fill(0);
     output2_gpu.fill(0);
     scanner.fill(0);
-    locations.fill(0);
-    group_locations.fill(0);
     mid_bucket_accum.fill(0);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -104,13 +104,10 @@ void run(int argc, char** argv)
                     num = (num + 1) / 2;
                     to += num;
                 }
-                ocl_prefixAccum.exec(
-                        gpu::WorkSize(GROUP_SIZE, n),
-                        scanner, locations, n);
 
                 ocl_radixPut.exec(
-                        gpu::WorkSize(GROUP_SIZE, n + 1),
-                        input, output, locations, mid_bucket_accum,
+                        gpu::WorkSize(GROUP_SIZE, n),
+                        input, output, scanner, mid_bucket_accum,
                         n, radx, mask);
             }
         }
