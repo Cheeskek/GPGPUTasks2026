@@ -11,6 +11,7 @@ __kernel void prefix_one_group_accum(
     __global       uint* group_sum_accum,
     unsigned int n)
 {
+    unsigned int lid = get_local_id(0);
     unsigned int x = get_global_id(0) << GROUP_SHIFT;
     if (x > n) {
         return;
@@ -20,6 +21,8 @@ __kernel void prefix_one_group_accum(
     unsigned int sum = 0;
     while (x > 0) {
         if (x & 1) {
+            if (lid == 0)
+                printf("%d\n", from + x - 1);
             sum += pow2_sum[from + x - 1];
         }
         x >>= 1;
@@ -27,5 +30,7 @@ __kernel void prefix_one_group_accum(
         n = (n + 1) / 2;
         to += n;
     }
+    if (lid == 0)
+        printf("b\n");
     group_sum_accum[get_global_id(0)] = sum;
 }
