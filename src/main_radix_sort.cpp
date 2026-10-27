@@ -68,12 +68,14 @@ void run(int argc, char** argv)
     // Аллоцируем буферы в VRAM
     gpu::gpu_mem_32u input_gpu(n), output_gpu(n), output2_gpu(n);
     gpu::gpu_mem_32u scanner(2 * n);
+    gpu::gpu_mem_32u group_accum(n >> GROUP_SHIFT);
     gpu::gpu_mem_32u mid_bucket_accum(2);
     input_gpu.fill(max_value);
     input_gpu.writeN(as.data(), n);
     output_gpu.fill(0);
     output2_gpu.fill(0);
     scanner.fill(0);
+    group_accum.fill(0);
     mid_bucket_accum.fill(0);
 
     // Запускаем кернел (несколько раз и с замером времени выполнения)
@@ -105,9 +107,13 @@ void run(int argc, char** argv)
                     to += num;
                 }
 
+                ocl_prefixOneGroupAccum.exec(
+                        gpu::WorkSize(GROUP_SIZE, n >> GROUP_SHIFT),
+                        scanner, group_accum, n);
+
                 ocl_radixPut.exec(
                         gpu::WorkSize(GROUP_SIZE, n),
-                        input, output, scanner, mid_bucket_accum,
+                        input, output, scanner, group_accum, mid_bucket_accum,
                         n, radx, mask);
             }
         }

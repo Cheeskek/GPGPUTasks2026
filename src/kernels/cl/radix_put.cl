@@ -10,6 +10,7 @@ __kernel void radix_put(
     __global uint* input,
     __global uint* output,
     __global uint* pow2_sum,
+    __global uint* group_accum,
     __global uint* start_loc, // one value, not array
     unsigned int n,
     unsigned int iter,
@@ -28,6 +29,8 @@ __kernel void radix_put(
         const unsigned int lane = lid & (GROUP_SIZE - 1);
         const unsigned int group = lid >> GROUP_SHIFT;
 
+        sum += group_accum[get_group_id(0)];
+
         cache[lid] = (gid < n ? pow2_sum[gid] : 0);
         barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -43,7 +46,7 @@ __kernel void radix_put(
             }
             barrier(CLK_LOCAL_MEM_FENCE);
         }
-        sum = cache[lid];
+        sum += cache[lid];
 
         from = to;
         num >>= GROUP_SHIFT;
